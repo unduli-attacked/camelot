@@ -24,8 +24,9 @@ class PDFHandler(object):
 
     Parameters
     ----------
-    filepath : str
-        Filepath or URL of the PDF file.
+    file : IO
+        A File object or an object that supports the standard read
+        and seek methods similar to a File object.
     pages : str, optional (default: '1')
         Comma-separated page numbers.
         Example: '1,3,4' or '1,4-end' or 'all'.
@@ -34,11 +35,9 @@ class PDFHandler(object):
 
     """
 
-    def __init__(self, filepath, pages="1", password=None):
-        if is_url(filepath):
-            filepath = download_url(filepath)
-        self.filepath = filepath
-        if not filepath.lower().endswith(".pdf"):
+    def __init__(self, file, pages="1", password=None):
+        self.file = file
+        if not file.name.lower().endswith(".pdf"):
             raise NotImplementedError("File format not supported")
 
         if password is None:
@@ -47,15 +46,16 @@ class PDFHandler(object):
             self.password = password
             if sys.version_info[0] < 3:
                 self.password = self.password.encode("ascii")
-        self.pages = self._get_pages(self.filepath, pages)
+        self.pages = self._get_pages(self.file, pages)
 
-    def _get_pages(self, filepath, pages):
+    def _get_pages(self, file, pages):
         """Converts pages string to list of ints.
 
         Parameters
         ----------
-        filepath : str
-            Filepath or URL of the PDF file.
+        file : IO
+            A File object or an object that supports the standard read
+            and seek methods similar to a File object.
         pages : str, optional (default: '1')
             Comma-separated page numbers.
             Example: '1,3,4' or '1,4-end' or 'all'.
@@ -70,7 +70,7 @@ class PDFHandler(object):
         if pages == "1":
             page_numbers.append({"start": 1, "end": 1})
         else:
-            instream = open(filepath, "rb")
+            instream = file
             infile = PdfFileReader(instream, strict=False)
             if infile.isEncrypted:
                 infile.decrypt(self.password)
@@ -91,20 +91,21 @@ class PDFHandler(object):
             P.extend(range(p["start"], p["end"] + 1))
         return sorted(set(P))
 
-    def _save_page(self, filepath, page, temp):
+    def _save_page(self, file, page, temp):
         """Saves specified page from PDF into a temporary directory.
 
         Parameters
         ----------
-        filepath : str
-            Filepath or URL of the PDF file.
+        file : IO
+            A File object or an object that supports the standard read
+            and seek methods similar to a File object.
         page : int
             Page number.
         temp : str
             Tmp directory.
 
         """
-        with open(filepath, "rb") as fileobj:
+        with file as fileobj:
             infile = PdfFileReader(fileobj, strict=False)
             if infile.isEncrypted:
                 infile.decrypt(self.password)
@@ -166,7 +167,7 @@ class PDFHandler(object):
         tables = []
         with TemporaryDirectory() as tempdir:
             for p in self.pages:
-                self._save_page(self.filepath, p, tempdir)
+                self._save_page(self.file, p, tempdir)
             pages = [os.path.join(tempdir, f"page-{p}.pdf") for p in self.pages]
             parser = Lattice(**kwargs) if flavor == "lattice" else Stream(**kwargs)
             for p in pages:

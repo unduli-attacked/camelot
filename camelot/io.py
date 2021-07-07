@@ -1,13 +1,16 @@
 # -*- coding: utf-8 -*-
 
 import warnings
+from typing import IO
+
+from PyPDF2.utils import isString
 
 from .handlers import PDFHandler
-from .utils import validate_input, remove_extra
+from .utils import validate_input, remove_extra, download_url, is_url
 
 
 def read_pdf(
-    filepath,
+    file,
     pages="1",
     password=None,
     flavor="lattice",
@@ -22,8 +25,10 @@ def read_pdf(
 
     Parameters
     ----------
-    filepath : str
-        Filepath or URL of the PDF file.
+    file: Any
+        A File object or an object that supports the standard read
+        and seek methods similar to a File object. Could also be a
+        string representing a path to a PDF file.
     pages : str, optional (default: '1')
         Comma-separated page numbers.
         Example: '1,3,4' or '1,4-end' or 'all'.
@@ -98,6 +103,7 @@ def read_pdf(
     tables : camelot.core.TableList
 
     """
+
     if flavor not in ["lattice", "stream"]:
         raise NotImplementedError(
             "Unknown flavor specified." " Use either 'lattice' or 'stream'"
@@ -108,7 +114,13 @@ def read_pdf(
             warnings.simplefilter("ignore")
 
         validate_input(kwargs, flavor=flavor)
-        p = PDFHandler(filepath, pages=pages, password=password)
+        if isString(file):
+            if is_url(file):
+                file = download_url(file)
+            fl = open(file, "rb")
+            p = PDFHandler(fl, pages=pages, password=password)
+        else:
+            p = PDFHandler(file, pages=pages, password=password)
         kwargs = remove_extra(kwargs, flavor=flavor)
         tables = p.parse(
             flavor=flavor,
